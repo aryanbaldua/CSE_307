@@ -12,4 +12,3 @@ const root = ReactDOMClient.createRoot(container);
 root.render(<MyApp />);
 
 
-//i am on step 5
