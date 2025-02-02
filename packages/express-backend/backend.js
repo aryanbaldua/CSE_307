@@ -1,90 +1,71 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import UserService from "./services/user-service.js";
+
+dotenv.config();
 
 const app = express();
 const port = 8000;
 
-const users = {
-  users_list: [
-    {
-      id: "xyz789",
-      name: "Charlie",
-      job: "Janitor",
-    },
-    {
-      id: "abc123",
-      name: "Mac",
-      job: "Bouncer",
-    },
-    {
-      id: "ppp222",
-      name: "Mac",
-      job: "Professor",
-    },
-    {
-      id: "yat999",
-      name: "Dee",
-      job: "Aspiring actress",
-    },
-    {
-      id: "zap555",
-      name: "Dennis",
-      job: "Bartender",
-    },
-  ],
-};
-
 app.use(cors());
 app.use(express.json());
 
-const generateId = () => Math.floor(Math.random() * 1000000).toString();
-
-const findUserById = (id) => users["users_list"].find((user) => user["id"] === id);
-
-const deleteUserById = (id) => {
-  const index = users["users_list"].findIndex((user) => user["id"] === id);
-  if (index !== -1) {
-    users["users_list"].splice(index, 1);
-    return true;
-  }
-  return false;
-};
+const { MONGO_CONNECTION_STRING } = process.env;
+mongoose.set("debug", true);
+mongoose
+  .connect(MONGO_CONNECTION_STRING)
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((error) => console.error("MongoDB connection error:", error));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Express Backend!");
 });
 
-app.get("/users", (req, res) => {
-  res.json(users);
-});
-
-app.get("/users/:id", (req, res) => {
-  const id = req.params["id"];
-  let result = findUserById(id);
-  if (!result) {
-    res.status(404).send("Resource not found.");
-  } else {
-    res.json(result);
+app.get("/users", async (req, res) => {
+  try {
+    const users = await UserService.getAllUsers();
+    res.json({ users_list: users });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).send("Internal Server Error");
   }
 });
 
-app.post("/users", (req, res) => {
-  const userToAdd = req.body;
-  if (!userToAdd.name || !userToAdd.job) {
-    return res.status(400).send("Missing name or job");
+app.get("/users/:id", async (req, res) => {
+  try {
+    const user = await UserService.getUserById(req.params.id);
+    if (!user) {
+      return res.status(404).send("User not found");
+    }
+    res.json(user);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).send("Internal Server Error");
   }
-  userToAdd.id = generateId();
-  users["users_list"].push(userToAdd);
-  res.status(201).json(userToAdd);
 });
 
-app.delete("/users/:id", (req, res) => {
-  const id = req.params["id"];
-  const success = deleteUserById(id);
-  if (success) {
+app.post("/users", async (req, res) => {
+  try {
+    const newUser = await UserService.createUser(req.body);
+    res.status(201).json(newUser);
+  } catch (error) {
+    console.error("Error creating user:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.delete("/users/:id", async (req, res) => {
+  try {
+    const success = await UserService.deleteUser(req.params.id);
+    if (!success) {
+      return res.status(404).send("User not found");
+    }
     res.status(204).send();
-  } else {
-    res.status(404).send("Resource not found.");
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).send("Internal Server Error");
   }
 });
 
